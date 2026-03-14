@@ -77,6 +77,13 @@ export default function ExpenseApp() {
   const [rCat, setRCat]     = useState('Food')
   const [rFreq, setRFreq]   = useState('monthly')
 
+  // Savings
+  const [savings, setSavings]     = useState({})
+  const [sIncome, setSIncome]     = useState('')
+  const [sSavingGoal, setSSavingGoal] = useState('')
+  const [sDeposit, setSDeposit]   = useState('')
+  const [sDepNote, setSDepNote]   = useState('')
+
   function showToast(msg, type = 'warning') {
     const id = Date.now() + Math.random()
     setToasts(t => [...t, { id, msg, type }])
@@ -130,6 +137,50 @@ export default function ExpenseApp() {
   useEffect(() => {
     reminders.forEach(r => { if (r.date <= today()) showToast(`🔔 Due: ${r.title} — ${fmt(r.amount)}`, 'info') })
   }, [reminders])
+
+  useEffect(() => {
+    if (!user) return
+    const unsub = onSnapshot(doc(db, 'users', user.uid, 'settings', 'savings'), snap => {
+      if (snap.exists()) setSavings(snap.data())
+    }, err => console.error(err))
+    return unsub
+  }, [user])
+
+  useEffect(() => {
+    if (!totalIncome || !savingsGoal) return
+    if (spendingPct >= 100) showToast('🚨 You have exceeded your spending limit!', 'danger')
+    else if (spendingPct >= 80) showToast(`⚠️ You've used ${Math.round(spendingPct)}% of your spending limit!`, 'warning')
+  }, [thisMonthTotal])
+
+  async function saveSavingsGoal() {
+    if (!sIncome || parseFloat(sIncome) <= 0) { showToast('Enter your income', 'danger'); return }
+    if (!sSavingGoal || parseFloat(sSavingGoal) <= 0) { showToast('Enter a savings goal', 'danger'); return }
+    if (parseFloat(sSavingGoal) >= parseFloat(sIncome)) { showToast('Savings goal must be less than income', 'danger'); return }
+    try {
+      const updated = { ...savings, income: parseFloat(sIncome), goal: parseFloat(sSavingGoal) }
+      await setDoc(doc(db, 'users', user.uid, 'settings', 'savings'), updated)
+      setSIncome(''); setSSavingGoal('')
+      showToast('✅ Savings goal set!', 'success')
+    } catch (e) { showToast('Failed: ' + e.message, 'danger') }
+  }
+
+  async function addDeposit() {
+    if (!sDeposit || parseFloat(sDeposit) <= 0) { showToast('Enter an amount', 'danger'); return }
+    try {
+      const deposits = [...(savings.deposits || []), { amount: parseFloat(sDeposit), note: sDepNote, date: today() }]
+      const updated = { ...savings, deposits }
+      await setDoc(doc(db, 'users', user.uid, 'settings', 'savings'), updated)
+      setSDeposit(''); setSDepNote('')
+      showToast(`✅ KES ${parseFloat(sDeposit).toLocaleString()} added to savings!`, 'success')
+    } catch (e) { showToast('Failed: ' + e.message, 'danger') }
+  }
+
+  async function clearSavings() {
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'settings', 'savings'), {})
+      showToast('Savings cleared', 'info')
+    } catch (e) { showToast('Failed', 'danger') }
+  }
 
   async function handleSignIn() {
     try { await signInWithPopup(auth, googleProvider) }
@@ -219,6 +270,13 @@ export default function ExpenseApp() {
   const sortedMonths  = Object.entries(monthlyTotals).sort((a, b) => b[0].localeCompare(a[0]))
   const maxMonthVal   = Math.max(...Object.values(monthlyTotals), 1)
   const dueReminders  = reminders.filter(r => r.date <= today())
+  const totalIncome     = parseFloat(savings.income || 0)
+  const savingsGoal     = parseFloat(savings.goal || 0)
+  const maxSpendable    = totalIncome - savingsGoal
+  const totalDeposited  = (savings.deposits || []).reduce((s, d) => s + (d.amount || 0), 0)
+  const allTimeSpent    = expenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const remainingToSave = savingsGoal - totalDeposited
+  const spendingPct     = maxSpendable > 0 ? Math.min((thisMonthTotal / maxSpendable) * 100, 100) : 0
   const splitTotal    = CAT_KEYS.reduce((s, k) => { const v = parseFloat(bSplit[k]); return s + (isNaN(v) ? 0 : v) }, 0)
 
   const inp  = { background:'#0f1117', border:'0.5px solid #2e3148', borderRadius:6, height:38, padding:'0 10px', color:'#e3e5e8', fontSize:13, width:'100%', outline:'none' }
@@ -286,6 +344,7 @@ export default function ExpenseApp() {
           <div style={secL}>Menu</div>
           {[
             { key:'expenses',  label:'Expenses',       icon:'💰', badge:0 },
+            { key:'savings',   label:'Savings',         icon:'🏦', badge:0 },
             { key:'budget',    label:'Budget Planner', icon:'📊', badge:0 },
             { key:'reminders', label:'Reminders',      icon:'🔔', badge:dueReminders.length },
             { key:'report',    label:'Monthly Report', icon:'📈', badge:0 },
@@ -357,7 +416,7 @@ export default function ExpenseApp() {
             </button>
           )}
           <span style={{ fontSize:isSmall?13:15, fontWeight:600, color:'#e3e5e8', flex:1, minWidth:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {activeTab==='expenses'?(activeFilter==='All'?'All expenses':CATEGORIES[activeFilter]?.label): activeTab==='budget'?'Budget Planner': activeTab==='reminders'?'Reminders':'Monthly Report'}
+            {activeTab==='expenses'?(activeFilter==='All'?'All expenses':CATEGORIES[activeFilter]?.label): activeTab==='budget'?'Budget Planner': activeTab==='reminders'?'Reminders': activeTab==='savings'?'Savings':'Monthly Report'}
           </span>
           <div style={{ display:'flex', alignItems:'center', gap:4, background:'#1e2130', borderRadius:10, padding:'3px 8px', fontSize:11, color:'#3ba55d', fontWeight:600, flexShrink:0 }}>
             <div style={{ width:6, height:6, borderRadius:'50%', background:'#3ba55d', animation:'pulse 2s infinite' }} />
@@ -585,6 +644,118 @@ export default function ExpenseApp() {
                   )
                 })
             }
+          </>}
+
+          {/* ══ SAVINGS ══ */}
+          {activeTab === 'savings' && <>
+
+            {/* Summary cards */}
+            <div style={{ display:'grid', gridTemplateColumns: isSmall?'1fr':'repeat(3,minmax(0,1fr))', gap:10, marginBottom:14 }}>
+              {[
+                { label:'Income',          val: fmt(totalIncome),      color:'#3ba55d' },
+                { label:'Savings goal',    val: fmt(savingsGoal),      color:'#5865f2' },
+                { label:'Max spendable',   val: fmt(maxSpendable > 0 ? maxSpendable : 0), color: maxSpendable < 0 ? '#ed4245' : '#ef9f27' },
+              ].map(s => (
+                <div key={s.label} style={card}>
+                  <div style={{ fontSize:11, color:'#72767d', marginBottom:4 }}>{s.label}</div>
+                  <div style={{ fontSize:20, fontWeight:700, color:s.color }}>{s.val}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Spending limit bar */}
+            {totalIncome > 0 && savingsGoal > 0 && (
+              <div style={{ ...card, border:`0.5px solid ${spendingPct>=100?'#ed4245':spendingPct>=80?'#ef9f27':'#1e2130'}` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:'#e3e5e8' }}>This month spending</span>
+                  {spendingPct >= 100 && <span style={{ fontSize:10, background:'#3d1c1c', color:'#ed4245', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>LIMIT REACHED</span>}
+                  {spendingPct >= 80 && spendingPct < 100 && <span style={{ fontSize:10, background:'#3d2e1c', color:'#ef9f27', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>SLOW DOWN</span>}
+                </div>
+                <div style={{ height:12, background:'#1e2130', borderRadius:6, overflow:'hidden', marginBottom:8 }}>
+                  <div style={{ height:'100%', borderRadius:6, transition:'width 0.4s',
+                    width:`${spendingPct.toFixed(1)}%`,
+                    background: spendingPct>=100?'#ed4245':spendingPct>=80?'#ef9f27':'#3ba55d' }} />
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:4, fontSize:11, color:'#72767d' }}>
+                  <span>Spent this month: <strong style={{ color:'#e3e5e8' }}>{fmt(thisMonthTotal)}</strong></span>
+                  <span>Limit: <strong style={{ color:'#e3e5e8' }}>{fmt(maxSpendable)}</strong></span>
+                  <span>Remaining: <strong style={{ color: maxSpendable-thisMonthTotal < 0 ?'#ed4245':'#3ba55d' }}>{fmt(maxSpendable - thisMonthTotal)}</strong></span>
+                </div>
+              </div>
+            )}
+
+            {/* Set goal form */}
+            <div style={card}>
+              <div style={secL}>Set income & savings goal</div>
+              <p style={{ fontSize:12, color:'#72767d', marginBottom:12 }}>
+                Set your monthly income and how much you want to save. The app will calculate your max spending limit and warn you when you're close.
+              </p>
+              <div style={{ display:'grid', gridTemplateColumns: isSmall?'1fr':'1fr 1fr', gap:8, marginBottom:8 }}>
+                <div>
+                  <div style={{ fontSize:11, color:'#72767d', marginBottom:6 }}>Monthly income (KES)</div>
+                  <input value={sIncome} onChange={e=>setSIncome(e.target.value)} type="number" placeholder="e.g. 80000" style={inp} />
+                </div>
+                <div>
+                  <div style={{ fontSize:11, color:'#72767d', marginBottom:6 }}>Savings target (KES)</div>
+                  <input value={sSavingGoal} onChange={e=>setSSavingGoal(e.target.value)} type="number" placeholder="e.g. 20000" style={inp} />
+                </div>
+              </div>
+              {sIncome && sSavingGoal && parseFloat(sSavingGoal) < parseFloat(sIncome) && (
+                <div style={{ padding:'8px 12px', background:'#1c3d2a', border:'0.5px solid #3ba55d', borderRadius:6, marginBottom:8, fontSize:12, color:'#57c87a' }}>
+                  Max spendable: <strong>{fmt(parseFloat(sIncome) - parseFloat(sSavingGoal))}</strong> per month
+                </div>
+              )}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <button onClick={saveSavingsGoal} style={btn}>💾 Save Goal</button>
+                <button onClick={clearSavings} style={{ ...btn, background:'#3d1c1c', color:'#ed4245' }}>🗑 Clear</button>
+              </div>
+            </div>
+
+            {/* Deposit savings */}
+            {savingsGoal > 0 && (
+              <div style={card}>
+                <div style={secL}>Log a savings deposit</div>
+                <div style={{ display:'grid', gridTemplateColumns: isSmall?'1fr':'1fr 1fr', gap:8, marginBottom:8 }}>
+                  <input value={sDeposit} onChange={e=>setSDeposit(e.target.value)} type="number" placeholder="Amount saved" style={inp} />
+                  <input value={sDepNote} onChange={e=>setSDepNote(e.target.value)} placeholder="Note e.g. M-Pesa to savings" style={inp} />
+                </div>
+
+                {/* Savings progress */}
+                <div style={{ padding:'10px 12px', background:'#1a1d2e', borderRadius:6, marginBottom:10 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#72767d', marginBottom:6 }}>
+                    <span>Saved so far: <strong style={{ color:'#3ba55d' }}>{fmt(totalDeposited)}</strong></span>
+                    <span>Goal: <strong style={{ color:'#5865f2' }}>{fmt(savingsGoal)}</strong></span>
+                  </div>
+                  <div style={{ height:8, background:'#1e2130', borderRadius:4, overflow:'hidden', marginBottom:4 }}>
+                    <div style={{ height:'100%', borderRadius:4, background:'#3ba55d',
+                      width:`${Math.min((totalDeposited/savingsGoal)*100,100).toFixed(1)}%`, transition:'width 0.4s' }} />
+                  </div>
+                  <div style={{ fontSize:11, color: remainingToSave<=0?'#3ba55d':'#72767d', textAlign:'right' }}>
+                    {remainingToSave <= 0 ? '🎉 Goal reached!' : `${fmt(remainingToSave)} still to save`}
+                  </div>
+                </div>
+
+                <button onClick={addDeposit} style={btn}>+ Log Deposit</button>
+              </div>
+            )}
+
+            {/* Deposits history */}
+            {(savings.deposits || []).length > 0 && (
+              <div style={card}>
+                <div style={secL}>Deposit history</div>
+                {[...(savings.deposits || [])].reverse().map((d, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0',
+                    borderBottom: i < (savings.deposits||[]).length-1 ? '0.5px solid #1e2130' : 'none' }}>
+                    <span style={{ fontSize:16 }}>💚</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:500, color:'#e3e5e8' }}>{d.note || 'Savings deposit'}</div>
+                      <div style={{ fontSize:11, color:'#72767d', marginTop:2 }}>{d.date}</div>
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#3ba55d', flexShrink:0 }}>+{fmt(d.amount)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>}
 
           {/* ══ REPORT ══ */}
