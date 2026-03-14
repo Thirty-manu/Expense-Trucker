@@ -147,10 +147,15 @@ export default function ExpenseApp() {
   }, [user])
 
   useEffect(() => {
-    if (!totalIncome || !savingsGoal) return
-    if (spendingPct >= 100) showToast('🚨 You have exceeded your spending limit!', 'danger')
-    else if (spendingPct >= 80) showToast(`⚠️ You've used ${Math.round(spendingPct)}% of your spending limit!`, 'warning')
-  }, [thisMonthTotal])
+    const income = parseFloat(savings.income || 0)
+    const goal   = parseFloat(savings.goal || 0)
+    const maxSp  = income - goal
+    const mTotal = expenses.filter(e => e.date?.startsWith(thisMonth())).reduce((s, e) => s + (e.amount || 0), 0)
+    const pct    = maxSp > 0 ? Math.min((mTotal / maxSp) * 100, 100) : 0
+    if (!income || !goal) return
+    if (pct >= 100) showToast('🚨 You have exceeded your spending limit!', 'danger')
+    else if (pct >= 80) showToast(`⚠️ You have used ${Math.round(pct)}% of your spending limit!`, 'warning')
+  }, [expenses, savings])
 
   async function saveSavingsGoal() {
     if (!sIncome || parseFloat(sIncome) <= 0) { showToast('Enter your income', 'danger'); return }
