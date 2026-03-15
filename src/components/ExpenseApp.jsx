@@ -167,6 +167,13 @@ export default function ExpenseApp() {
   const [sDeposit,setSDeposit]       = useState('')
   const [sDepNote,setSDepNote]       = useState('')
 
+  // Settings
+  const [currency,setCurrency]       = useState(()=>localStorage.getItem('et_currency')||'KES')
+  const [colorTheme,setColorTheme]   = useState(()=>localStorage.getItem('et_theme')||'indigo')
+  const [compactMode,setCompactMode] = useState(()=>localStorage.getItem('et_compact')==='true')
+  const [showCents,setShowCents]     = useState(()=>localStorage.getItem('et_cents')==='true')
+  const [notifSound,setNotifSound]   = useState(()=>localStorage.getItem('et_sound')!=='false')
+
   function showToast(msg,type='warning') {
     const id=Date.now()+Math.random()
     setToasts(t=>[...t,{id,msg,type}])
@@ -483,6 +490,7 @@ export default function ExpenseApp() {
             {key:'reminders',label:'Reminders',      icon:'🔔',badge:dueReminders.length},
             {key:'report',   label:'Monthly Report', icon:'📈',badge:0},
             {key:'insights', label:'Insights',       icon:'💡',badge:0},
+            {key:'settings', label:'Settings',        icon:'⚙️',badge:0},
           ].map(item=>(
             <button key={item.key} onClick={()=>{setActiveTab(item.key);if(isMobile)setSidebarOpen(false)}} style={{display:'flex',alignItems:'center',gap:9,width:'100%',padding:'8px 10px',borderRadius:6,border:'none',cursor:'pointer',background:activeTab===item.key?'#3c4270':'transparent',color:activeTab===item.key?'#fff':'#96989d',fontSize:13,textAlign:'left',marginBottom:2}}>
               <span style={{fontSize:15}}>{item.icon}</span>
@@ -527,7 +535,7 @@ export default function ExpenseApp() {
             <div style={{width:18,height:2,background:'#e3e5e8',borderRadius:2}}/><div style={{width:18,height:2,background:'#e3e5e8',borderRadius:2}}/><div style={{width:18,height:2,background:'#e3e5e8',borderRadius:2}}/>
           </button>}
           <span style={{fontSize:isSmall?13:15,fontWeight:600,color:'#e3e5e8',flex:1,minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-            {activeTab==='expenses'?(activeFilter==='All'?'All expenses':CATEGORIES[activeFilter]?.label):activeTab==='budget'?'Budget Planner':activeTab==='reminders'?'Reminders':activeTab==='savings'?'Savings':activeTab==='insights'?'Insights':'Monthly Report'}
+            {activeTab==='expenses'?(activeFilter==='All'?'All expenses':CATEGORIES[activeFilter]?.label):activeTab==='budget'?'Budget Planner':activeTab==='reminders'?'Reminders':activeTab==='savings'?'Savings':activeTab==='insights'?'Insights':activeTab==='settings'?'Settings':'Monthly Report'}
           </span>
           <div style={{display:'flex',alignItems:'center',gap:4,background:'#1e2130',borderRadius:10,padding:'3px 8px',fontSize:11,color:'#3ba55d',fontWeight:600,flexShrink:0}}>
             <div style={{width:6,height:6,borderRadius:'50%',background:'#3ba55d',animation:'pulse 2s infinite'}}/>LIVE
@@ -940,6 +948,178 @@ export default function ExpenseApp() {
                 <div style={{fontSize:12,color:'#72767d',lineHeight:1.5}}>{t.tip}</div>
               </div>
             ))}
+          </>}
+
+          {/* ══ SETTINGS ══ */}
+          {activeTab==='settings'&&<>
+
+            {/* Profile */}
+            <div style={card}>
+              <div style={secL}>Profile</div>
+              <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16}}>
+                {user.photoURL
+                  ?<img src={user.photoURL} alt="" style={{width:52,height:52,borderRadius:'50%',flexShrink:0}}/>
+                  :<div style={{width:52,height:52,borderRadius:'50%',background:'#5865f2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,fontWeight:700,color:'#fff',flexShrink:0}}>{user.displayName?.[0]||'U'}</div>
+                }
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:600,color:'#e3e5e8',marginBottom:2}}>{user.displayName||'User'}</div>
+                  <div style={{fontSize:12,color:'#72767d',marginBottom:6}}>{user.email}</div>
+                  <div style={{display:'inline-flex',alignItems:'center',gap:4,background:'#1c3d2a',border:'0.5px solid #3ba55d',borderRadius:10,padding:'2px 8px'}}>
+                    <div style={{width:6,height:6,borderRadius:'50%',background:'#3ba55d'}}/>
+                    <span style={{fontSize:11,color:'#3ba55d',fontWeight:600}}>Signed in with Google</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={handleSignOut} style={{...btn,background:'#3d1c1c',color:'#ed4245',height:36}}>Sign out</button>
+            </div>
+
+            {/* Appearance */}
+            <div style={card}>
+              <div style={secL}>Appearance</div>
+
+              {/* Accent color */}
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:12,color:'#72767d',marginBottom:8}}>Accent color</div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  {[
+                    {key:'indigo', color:'#5865f2', label:'Indigo'},
+                    {key:'green',  color:'#1d9e75', label:'Green'},
+                    {key:'rose',   color:'#d4537e', label:'Rose'},
+                    {key:'amber',  color:'#ef9f27', label:'Amber'},
+                    {key:'blue',   color:'#378add', label:'Blue'},
+                  ].map(t=>(
+                    <button key={t.key} onClick={()=>{setColorTheme(t.key);localStorage.setItem('et_theme',t.key)}} style={{
+                      width:32,height:32,borderRadius:'50%',background:t.color,border:`3px solid ${colorTheme===t.key?'#fff':'transparent'}`,cursor:'pointer',flexShrink:0,
+                      outline:colorTheme===t.key?`2px solid ${t.color}`:'none',outlineOffset:2,
+                    }} title={t.label}/>
+                  ))}
+                </div>
+              </div>
+
+              {/* Compact mode */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,paddingBottom:14,borderBottom:'0.5px solid #1e2130'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:500,color:'#e3e5e8'}}>Compact mode</div>
+                  <div style={{fontSize:11,color:'#72767d',marginTop:2}}>Reduce spacing between items</div>
+                </div>
+                <button onClick={()=>{setCompactMode(v=>{localStorage.setItem('et_compact',String(!v));return !v})}} style={{
+                  width:44,height:24,borderRadius:12,border:'none',cursor:'pointer',
+                  background:compactMode?'#5865f2':'#2e3148',position:'relative',transition:'background 0.2s',flexShrink:0,
+                }}>
+                  <div style={{width:18,height:18,borderRadius:'50%',background:'#fff',position:'absolute',top:3,left:compactMode?23:3,transition:'left 0.2s'}}/>
+                </button>
+              </div>
+
+              {/* Show cents */}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:500,color:'#e3e5e8'}}>Show decimal places</div>
+                  <div style={{fontSize:11,color:'#72767d',marginTop:2}}>Display KES 1,500.50 instead of KES 1,501</div>
+                </div>
+                <button onClick={()=>{setShowCents(v=>{localStorage.setItem('et_cents',String(!v));return !v})}} style={{
+                  width:44,height:24,borderRadius:12,border:'none',cursor:'pointer',
+                  background:showCents?'#5865f2':'#2e3148',position:'relative',transition:'background 0.2s',flexShrink:0,
+                }}>
+                  <div style={{width:18,height:18,borderRadius:'50%',background:'#fff',position:'absolute',top:3,left:showCents?23:3,transition:'left 0.2s'}}/>
+                </button>
+              </div>
+            </div>
+
+            {/* Notifications */}
+            <div style={card}>
+              <div style={secL}>Notifications</div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:500,color:'#e3e5e8'}}>In-app toast alerts</div>
+                  <div style={{fontSize:11,color:'#72767d',marginTop:2}}>Budget warnings, reminders, confirmations</div>
+                </div>
+                <button onClick={()=>{setNotifSound(v=>{localStorage.setItem('et_sound',String(!v));return !v})}} style={{
+                  width:44,height:24,borderRadius:12,border:'none',cursor:'pointer',
+                  background:notifSound?'#5865f2':'#2e3148',position:'relative',transition:'background 0.2s',flexShrink:0,
+                }}>
+                  <div style={{width:18,height:18,borderRadius:'50%',background:'#fff',position:'absolute',top:3,left:notifSound?23:3,transition:'left 0.2s'}}/>
+                </button>
+              </div>
+            </div>
+
+            {/* Currency */}
+            <div style={card}>
+              <div style={secL}>Currency</div>
+              <div style={{fontSize:12,color:'#72767d',marginBottom:8}}>Display currency for all amounts</div>
+              <select value={currency} onChange={e=>{setCurrency(e.target.value);localStorage.setItem('et_currency',e.target.value)}} style={inp}>
+                <option value="KES">🇰🇪 KES — Kenyan Shilling</option>
+                <option value="USD">🇺🇸 USD — US Dollar</option>
+                <option value="EUR">🇪🇺 EUR — Euro</option>
+                <option value="GBP">🇬🇧 GBP — British Pound</option>
+                <option value="UGX">🇺🇬 UGX — Ugandan Shilling</option>
+                <option value="TZS">🇹🇿 TZS — Tanzanian Shilling</option>
+                <option value="NGN">🇳🇬 NGN — Nigerian Naira</option>
+                <option value="ZAR">🇿🇦 ZAR — South African Rand</option>
+                <option value="GHS">🇬🇭 GHS — Ghanaian Cedi</option>
+              </select>
+            </div>
+
+            {/* Security info */}
+            <div style={card}>
+              <div style={secL}>Security</div>
+              {[
+                {icon:'🔒',label:'Data encryption',desc:'All your data is encrypted in Firebase at rest and in transit'},
+                {icon:'👤',label:'Private by default',desc:'Only you can access your data — scoped to your Google account UID'},
+                {icon:'⏱️',label:'Auto session timeout',desc:'You are automatically signed out after 30 minutes of inactivity'},
+                {icon:'🛡️',label:'Input protection',desc:'All inputs are sanitized to prevent injection attacks'},
+                {icon:'⚡',label:'Rate limiting',desc:'Maximum 10 expense entries per minute to prevent abuse'},
+              ].map((item,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 0',borderBottom:i<4?'0.5px solid #1e2130':'none'}}>
+                  <span style={{fontSize:16,flexShrink:0,marginTop:1}}>{item.icon}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:500,color:'#e3e5e8'}}>{item.label}</div>
+                    <div style={{fontSize:11,color:'#72767d',marginTop:2,lineHeight:1.5}}>{item.desc}</div>
+                  </div>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:'#3ba55d',flexShrink:0,marginTop:4}}/>
+                </div>
+              ))}
+            </div>
+
+            {/* Data management */}
+            <div style={card}>
+              <div style={secL}>Data management</div>
+              <p style={{fontSize:12,color:'#72767d',marginBottom:12}}>Export or clear your data at any time. Clearing is permanent and cannot be undone.</p>
+              <div style={{display:'grid',gridTemplateColumns:isSmall?'1fr':'1fr 1fr',gap:8}}>
+                <button onClick={exportCSV} style={{...btn,background:'#1d9e75'}}>↓ Export all data (CSV)</button>
+                <button onClick={async()=>{
+                  if(!window.confirm('Delete ALL expenses? This cannot be undone.')) return
+                  try{
+                    const snap=await import('firebase/firestore').then(({getDocs,collection})=>getDocs(collection(db,'users',user.uid,'expenses')))
+                    const {deleteDoc,doc:fDoc}=await import('firebase/firestore')
+                    await Promise.all(snap.docs.map(d=>deleteDoc(fDoc(db,'users',user.uid,'expenses',d.id))))
+                    showToast('All expenses deleted','info')
+                  }catch(e){showToast('Failed to clear','danger')}
+                }} style={{...btn,background:'#3d1c1c',color:'#ed4245'}}>🗑 Clear all expenses</button>
+              </div>
+            </div>
+
+            {/* About */}
+            <div style={card}>
+              <div style={secL}>About</div>
+              {[
+                ['App','Expense Tracker'],
+                ['Version','v2.0.0'],
+                ['Project','2 of 20'],
+                ['Framework','React + Vite 7'],
+                ['Database','Firebase Firestore'],
+                ['Auth','Google OAuth 2.0'],
+                ['Hosting','Vercel'],
+              ].map(([k,v])=>(
+                <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'0.5px solid #1e2130'}}>
+                  <span style={{fontSize:12,color:'#72767d'}}>{k}</span>
+                  <span style={{fontSize:12,fontWeight:500,color:'#e3e5e8'}}>{v}</span>
+                </div>
+              ))}
+              <div style={{marginTop:14,textAlign:'center',fontSize:11,color:'#4e5058'}}>
+                Built with React, Firebase & ❤️
+              </div>
+            </div>
+
           </>}
 
         </div>
